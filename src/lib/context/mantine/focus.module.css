@@ -1,0 +1,43 @@
+/* focus.module.css */
+
+/* Use dynamic color from Mantine's CSS variables */
+.focus {
+    border-radius: 0.375rem; /* rounded corners */
+    transition: box-shadow 0.3s ease, transform 0.2s ease;
+  
+    /* Focus when clicked (mouse/touch) */
+    &:focus {
+      outline: 2px solid var(--mantine-color-primary-filled);
+      outline-offset: 3px;
+      transform: scale(1.01);
+    }
+  
+    /* Focus only when using keyboard (Tab) */
+    &:focus-visible {
+      outline: 3px solid var(--mantine-color-primary-filled);
+      outline-offset: 4px;
+      box-shadow: 0 0 0 4px var(--mantine-color-primary-filled);
+      transform: scale(1.02);
+    }
+  }
+  
+  /* Optional pulse animation */
+  @keyframes focus-pulse {
+    0% { box-shadow: 0 0 0 3px var(--mantine-color-primary-filled); }
+    50% { box-shadow: 0 0 0 6px var(--mantine-color-primary-filled); }
+    100% { box-shadow: 0 0 0 3px var(--mantine-color-primary-filled); }
+  }
+  
+  .focus:focus-visible {
+    animation: focus-pulse 1s infinite;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .focus:focus-visible {
+      outline-width: 2px;
+      outline-offset: 2px;
+      transform: scale(1.01);
+    }
+  }
+  

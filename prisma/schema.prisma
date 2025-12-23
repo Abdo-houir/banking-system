@@ -1,0 +1,215 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========== USER ==========
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  firstName String     @map("first_name")
+  lastName  String     @map("last_name")
+  password  String
+  phone     String?
+  role      UserRole   @default(CUSTOMER)
+  status    UserStatus @default(ACTIVE)
+
+  // Relations
+  accounts      Account[]
+  notifications Notification[]
+  transactions  Transaction[]  @relation("UserTransactions")
+  approvals     Approval[]     @relation("Approver")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+enum UserRole {
+  CUSTOMER
+  TELLER
+  MANAGER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+// ========== ACCOUNT RELATED ==========
+model Account {
+  id              Int           @id @default(autoincrement())
+  accountNumber   String        @unique @map("account_number")
+  customerId      Int           @map("customer_id")
+  customer        User          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  accountTypeId   Int           @map("account_type_id")
+  accountType     AccountType   @relation(fields: [accountTypeId], references: [id])
+  accountStatusId Int           @map("account_status_id")
+  accountStatus   AccountStatus @relation(fields: [accountStatusId], references: [id])
+  balance         Float         @default(0)
+  transactions    Transaction[]
+
+  // Account-specific fields (nullable for different account types)
+  minimumBalance         Float?    @map("minimum_balance")
+  transactionLimit       Float?    @map("transaction_limit")
+  interestRate           Float?    @map("interest_rate")
+  minimumPayment         Float?    @map("minimum_payment")
+  dueDate                DateTime? @map("due_date")
+  monthlyWithdrawalLimit Int?      @map("monthly_withdrawal_limit")
+  overdraftLimit         Float?    @map("overdraft_limit")
+  loanAmount             Float?    @map("loan_amount")
+  monthlyPayment         Float?    @map("monthly_payment")
+
+  // Relations
+  fromTransactions    Transaction[]        @relation("FromAccount")
+  toTransactions      Transaction[]        @relation("ToAccount")
+  accountTransactions AccountTransaction[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("accounts")
+}
+
+model AccountType {
+  id       Int       @id @default(autoincrement())
+  type     String    @unique
+  accounts Account[]
+
+  @@map("account_types")
+}
+
+model AccountStatus {
+  id       Int       @id @default(autoincrement())
+  status   String    @unique
+  accounts Account[]
+
+  @@map("account_statuses")
+}
+
+// ========== TRANSACTION ==========
+model Transaction {
+  id                  Int               @id @default(autoincrement())
+  accountId           Int               @map("account_id")
+  account             Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userId              Int               @map("user_id")
+  user                User              @relation("UserTransactions", fields: [userId], references: [id], onDelete: Cascade)
+  transactionStatusId Int               @map("transaction_status_id")
+  transactionStatus   TransactionStatus @relation(fields: [transactionStatusId], references: [id])
+  transactionTypeId   Int               @map("transaction_type_id")
+  transactionType     TransactionType   @relation(fields: [transactionTypeId], references: [id])
+  amount              Float
+  fromAccountId       Int?              @map("from_account_id")
+  fromAccount         Account?          @relation("FromAccount", fields: [fromAccountId], references: [id])
+  toAccountId         Int?              @map("to_account_id")
+  toAccount           Account?          @relation("ToAccount", fields: [toAccountId], references: [id])
+  referenceNumber     String            @unique @map("reference_number")
+
+  scheduledFor        DateTime?            @map("scheduled_for") // New field: when to execute the transfer
+  isScheduled         Boolean              @default(false) // New field: flag for scheduled status
+  // Relations
+  accountTransactions AccountTransaction[]
+  approvals           Approval[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("transactions")
+}
+
+model TransactionType {
+  id           Int           @id @default(autoincrement())
+  type         String        @unique
+  transactions Transaction[]
+
+  @@map("transaction_types")
+}
+
+model TransactionStatus {
+  id           Int           @id @default(autoincrement())
+  status       String        @unique
+  transactions Transaction[]
+
+  @@map("transaction_statuses")
+}
+
+// ========== ACCOUNT TRANSACTION (JUNCTION) ==========
+model AccountTransaction {
+  id            Int         @id @default(autoincrement())
+  balanceBefore Float       @map("balance_before")
+  balanceAfter  Float       @map("balance_after")
+  accountId     Int         @map("account_id")
+  account       Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transactionId Int         @map("transaction_id")
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@map("account_transactions")
+}
+
+// ========== APPROVAL ==========
+model Approval {
+  id             Int            @id @default(autoincrement())
+  transactionId  Int            @map("transaction_id")
+  transaction    Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  approverId     Int            @map("approver_id")
+  approver       User           @relation("Approver", fields: [approverId], references: [id], onDelete: Cascade)
+  approverRoleId Int            @map("approver_role_id")
+  approverRole   ApproverRole   @relation(fields: [approverRoleId], references: [id])
+  approverLimit  Float          @map("approver_limit")
+  comments       String?
+  statusId       Int            @map("status_id")
+  status         ApprovalStatus @relation(fields: [statusId], references: [id])
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@map("approvals")
+}
+
+model ApproverRole {
+  id        Int        @id @default(autoincrement())
+  role      String     @unique
+  approvals Approval[]
+
+  @@map("approver_roles")
+}
+
+model ApprovalStatus {
+  id        Int        @id @default(autoincrement())
+  status    String     @unique
+  approvals Approval[]
+
+  @@map("approval_statuses")
+}
+
+// ========== NOTIFICATION ==========
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  TRANSACTION
+  SYSTEM
+  ACCOUNT
+}
